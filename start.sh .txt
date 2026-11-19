@@ -1,0 +1,11 @@
+#!/bin/bash
+
+echo "Starting Solana Token Management Bot..."
+
+# Activate virtual environment
+source venv/bin/activate
+
+# Start the bot
+python3 bot.py
+
+echo "Bot stopped."

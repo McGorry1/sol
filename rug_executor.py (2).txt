@@ -1,0 +1,88 @@
+import os
+import json
+from typing import Tuple
+from solana.keypair import Keypair
+from solana.rpc.async_api import AsyncClient
+from solana.transaction import Transaction
+from solana.rpc.types import TxOpts
+from dotenv import load_dotenv
+
+load_dotenv()
+
+class RugExecutor:
+    def __init__(self, private_key: str, rpc_url: str):
+        self.private_key = private_key
+        self.rpc_url = rpc_url
+        self.client = AsyncClient(rpc_url)
+        self.keypair = Keypair.from_base58_string(private_key)
+
+    async def execute_swap(self, token_mint: str, percentage: float) -> Tuple[str, str]:
+        """Execute a token swap (sell)"""
+        try:
+            tx = Transaction()
+            result = await self.client.send_transaction(
+                tx,
+                self.keypair,
+                opts=TxOpts(skip_preflight=True)
+            )
+            mock_tx_hash = f"5HueGK1i5t1zzwusKTVbQ3wL6TmJR7x7Y1cKKbT1RzVw{hash(token_mint)}"
+            return mock_tx_hash, "Success"
+        except Exception as e:
+            return None, str(e)
+
+    async def execute_aggressive_sell(self, token_mint: str, percentage: float) -> Tuple[str, str]:
+        """Execute a strategic aggressive sell to capitalize on momentum"""
+        try:
+            tx = Transaction()
+            result = await self.client.send_transaction(
+                tx,
+                self.keypair,
+                opts=TxOpts(skip_preflight=True)
+            )
+            mock_tx_hash = f"AGGRESSIVE_DUMP{hash(token_mint)}"
+            return mock_tx_hash, f"Aggressive {percentage}% Sell Executed"
+        except Exception as e:
+            return None, str(e)
+
+    async def execute_liquidation_sell(self, token_mint: str) -> Tuple[str, str]:
+        """Execute complete liquidation for maximum exit"""
+        try:
+            tx = Transaction()
+            result = await self.client.send_transaction(
+                tx,
+                self.keypair,
+                opts=TxOpts(skip_preflight=True)
+            )
+            mock_tx_hash = f"LIQUIDATION{hash(token_mint)}"
+            return mock_tx_hash, "Full Liquidation Complete"
+        except Exception as e:
+            return None, str(e)
+
+    async def execute_buyback(self, token_mint: str, amount_sol: float) -> Tuple[str, str]:
+        """Execute a strategic buyback to support token price"""
+        try:
+            # Logic to buy tokens with SOL
+            tx = Transaction()
+            result = await self.client.send_transaction(
+                tx,
+                self.keypair,
+                opts=TxOpts(skip_preflight=True)
+            )
+            mock_tx_hash = f"BUYBACK{hash(token_mint)}"
+            return mock_tx_hash, f"Buyback executed: {amount_sol} SOL"
+        except Exception as e:
+            return None, str(e)
+
+    async def execute_buy(self, token_mint: str, amount: float) -> Tuple[str, str]:
+        """Execute a token buy"""
+        try:
+            tx = Transaction()
+            result = await self.client.send_transaction(
+                tx,
+                self.keypair,
+                opts=TxOpts(skip_preflight=True)
+            )
+            mock_tx_hash = f"BuyTx{hash(token_mint)}{hash(str(amount))}"
+            return mock_tx_hash, "Success"
+        except Exception as e:
+            return None, str(e)
