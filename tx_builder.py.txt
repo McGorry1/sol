@@ -1,0 +1,44 @@
+"""Transaction construction: compute budget, ATA setup, Jito tips, signing."""
+import base64
+from solders.compute_budget import set_compute_unit_limit, set_compute_unit_price
+from solders.instruction import Instruction
+from solders.message import Message
+from solders.pubkey import Pubkey
+from solders.transaction import Transaction
+from spl.token.instructions import create_idempotent_associated_token_account
+
+SYSTEM_PROGRAM = Pubkey.from_string("11111111111111111111111111111111")
+COMPUTE_BUDGET = Pubkey.from_string("ComputeBudget111111111111111111111111111111")
+
+
+def ata_for(owner: Pubkey, mint: Pubkey) -> Pubkey:
+    return Pubkey.find_program_address(
+        [bytes(owner), bytes(Pubkey.from_string("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")), bytes(mint)],
+        Pubkey.from_string("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"),
+    )[0]
+
+
+def budget_ixs(priority_fee: int, limit: int = 200_000) -> list[Instruction]:
+    return [
+        set_compute_unit_limit(limit),
+        set_compute_unit_price(priority_fee),
+    ]
+
+
+def tip_ix(payer: Pubkey, tip_account: Pubkey, lamports: int) -> Instruction:
+    from solders.system_program import transfer, TransferParams
+    return transfer(TransferParams(from_pubkey=payer, to_pubkey=tip_account, lamports=lamports))
+
+
+def build(payer: Pubkey, ixs: list[Instruction], blockhash) -> Transaction:
+    msg = Message.new_with_blockhash(ixs, payer, blockhash)
+    return Transaction.new_unsigned(msg)
+
+
+def sign_and_encode(tx: Transaction, *keypairs) -> str:
+    tx.sign(keypairs, tx.message.recent_blockhash)
+    return base64.b64encode(bytes(tx)).decode()
+
+
+def ata_ix(payer: Pubkey, owner: Pubkey, mint: Pubkey) -> Instruction:
+    return create_idempotent_associated_token_account(payer, owner, mint)
