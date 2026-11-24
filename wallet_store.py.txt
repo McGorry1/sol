@@ -1,0 +1,31 @@
+"""Persist bundle keypairs. bundle_manager generates in memory and loses them on restart."""
+import json
+import os
+import stat
+from pathlib import Path
+
+import base58
+from solders.keypair import Keypair
+
+DERIVATION_PREFIX = "venice-bundle-"
+
+
+def derive(master_secret: bytes, index: int) -> Keypair:
+    import hashlib
+    seed = hashlib.sha256(master_secret + DERIVATION_PREFIX.encode() + str(index).encode()).digest()
+    return Keypair.from_seed(seed)
+
+
+def save(path: str, keypairs: list[Keypair]) -> None:
+    payload = [base58.b58encode(bytes(k)).decode() for k in keypairs]
+    p = Path(path)
+    p.write_text(json.dumps(payload, indent=2))
+    os.chmod(p, stat.S_IRUSR | stat.S_IWUSR)
+
+
+def load(path: str) -> list[Keypair]:
+    return [Keypair.from_bytes(base58.b58decode(s)) for s in json.loads(Path(path).read_text())]
+
+
+def build(master_secret: bytes, count: int) -> list[Keypair]:
+    return [derive(master_secret, i) for i in range(count)]
