@@ -1,0 +1,58 @@
+"""Jupiter quote + swap transaction construction."""
+import base64
+import httpx
+from solders.transaction import VersionedTransaction
+
+SOL = "So11111111111111111111111111111111111111112"
+
+
+class SwapError(RuntimeError):
+    pass
+
+
+class Jupiter:
+    def __init__(self, api: str, key: str, slippage_bps: int, priority_fee: int):
+        self.api = api.rstrip("/")
+        self.slippage_bps = slippage_bps
+        self.priority_fee = priority_fee
+        self.headers = {"x-api-key": key} if key else {}
+
+    async def quote(self, input_mint: str, output_mint: str, lamports: int) -> dict:
+        params = {
+            "inputMint": input_mint,
+            "outputMint": output_mint,
+            "amount": lamports,
+            "slippageBps": self.slippage_bps,
+            "restrictIntermediateTokens": "true",
+        }
+        async with httpx.AsyncClient() as c:
+            r = await c.get(f"{self.api}/quote", params=params,
+                            headers=self.headers, timeout=20.0)
+        if r.status_code != 200:
+            raise SwapError(f"quote failed {r.status_code}: {r.text[:200]}")
+        data = r.json()
+        if not data.get("routePlan"):
+            raise SwapError("no route")
+        return data
+
+    async def swap_tx(self, quote: dict, user: str) -> VersionedTransaction:
+        payload = {
+            "quoteResponse": quote,
+            "userPublicKey": user,
+            "wrapAndUnwrapSol": True,
+            "dynamicComputeUnitLimit": True,
+            "prioritizationFeeLamports": {
+                "priorityLevelWithMaxLamports": {
+                    "maxLamports": self.priority_fee * 400,
+                    "priorityLevel": "high",
+                }
+            },
+        }
+        async with httpx.AsyncClient() as c:
+            r = await c.post(f"{self.api}/swap", json=payload,
+                             headers=self.headers, timeout=30.0)
+        if r.status_code != 200:
+            raise SwapError(f"swap build failed {r.status_code}: {r.text[:200]}")
+        return VersionedTransaction.from_bytes(
+            base64.b64decode(r.json()["swapTransaction"])
+        )
