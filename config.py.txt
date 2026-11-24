@@ -1,0 +1,95 @@
+"""Typed env loading with fail-fast validation. Nothing else reads os.environ."""
+import os
+from dataclasses import dataclass
+import base58
+from dotenv import load_dotenv
+
+load_dotenv()
+
+DEVNET_RPC = "https://api.devnet.solana.com"
+
+
+class ConfigError(RuntimeError):
+    pass
+
+
+def _req(name: str) -> str:
+    v = os.getenv(name, "").strip()
+    if not v:
+        raise ConfigError(f"missing required env: {name}")
+    return v
+
+
+def _num(name: str, default: float) -> float:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        raise ConfigError(f"{name} must be numeric, got {raw!r}")
+
+
+def _bool(name: str, default: bool = False) -> bool:
+    return os.getenv(name, str(default)).strip().lower() in ("1", "true", "yes")
+
+
+@dataclass(frozen=True)
+class Settings:
+    rpc_url: str
+    jito_url: str
+    jupiter_api: str
+    jupiter_key: str
+    dev_secret: bytes
+    dev_pubkey: str
+    target_mint: str | None
+    slippage_bps: int
+    priority_fee: int
+    jito_tip: int
+    bundle_wallets: int
+    max_buy_sol: float
+    default_sell_pct: float
+    max_extraction_pct: float
+    devnet: bool
+    wallet_store: str
+
+
+def load() -> Settings:
+    devnet = _bool("DEVNET", False)
+
+    secret_b58 = _req("DEV_WALLET_PRIVATE_KEY")
+    try:
+        secret = base58.b58decode(secret_b58)
+    except Exception as e:
+        raise ConfigError(f"DEV_WALLET_PRIVATE_KEY is not valid base58: {e}")
+    if len(secret) != 64:
+        raise ConfigError(
+            f"DEV_WALLET_PRIVATE_KEY decodes to {len(secret)} bytes, need 64. "
+            "A 44-char value is a public key, not a secret."
+        )
+
+    from solders.keypair import Keypair
+    dev_pubkey = str(Keypair.from_bytes(secret).pubkey())
+
+    mint = os.getenv("TARGET_TOKEN_MINT", "").strip()
+    if mint and mint == "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA":
+        raise ConfigError("TARGET_TOKEN_MINT is the Token Program ID, not a mint")
+
+    return Settings(
+        rpc_url=DEVNET_RPC if devnet else _req("HELIUS_RPC_URL"),
+        jito_url=os.getenv("JITO_URL", "https://mainnet.block-engine.jito.wtf/api/v1/bundles"),
+        jupiter_api=os.getenv("JUPITER_API", "https://lite-api.jup.ag/swap/v1"),
+        jupiter_key=os.getenv("JUPITER_API_KEY", ""),
+        dev_secret=secret,
+        dev_pubkey=dev_pubkey,
+        target_mint=mint or None,
+        slippage_bps=int(_num("SLIPPAGE_BPS", 800)),
+        priority_fee=int(_num("PRIORITY_FEE_MICROLAMPORTS", 50_000)),
+        jito_tip=int(_num("JITO_TIP_LAMPORTS", 5_000)),
+        bundle_wallets=int(_num("BUNDLE_WALLET_COUNT", 8)),
+        max_buy_sol=_num("MAX_BUY_SOL", 0.05),
+        default_sell_pct=_num("DEFAULT_SELL_PERCENTAGE", 15.0),
+        max_extraction_pct=_num("MAX_EXTRACTION_PERCENTAGE", 25.0),
+        devnet=devnet,
+        wallet_store=os.getenv("WALLET_STORE", "wallets.json"),
+    )
